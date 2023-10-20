@@ -1,0 +1,250 @@
+# docker run --rm -v "${PWD}":/config --network=host -it esphome/esphome run esp-cat-food.yaml
+
+esphome:
+  name: esp-cat-food
+
+esp8266:
+  board: nodemcuv2
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: ""
+
+ota:
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "esp-cat-food"
+    password: !secret wifi_password
+
+captive_portal:
+
+
+web_server:
+  port: 80
+
+
+
+
+stepper:
+  - platform: uln2003
+    id: cat_stepper
+    pin_a: D5
+    pin_b: D6
+    pin_c: D7
+    pin_d: D8
+    max_speed: 100 steps/s
+    sleep_when_done: true
+    acceleration: 100 steps/s^2
+    deceleration: 100 steps/s^2
+
+
+servo:
+  - id: my_servo
+    output: pwm_output
+    transition_length: 0s
+
+
+output:
+  - platform: esp8266_pwm
+    id: pwm_output
+    pin: D3
+    frequency: 50 Hz
+  - platform: gpio
+    id: motor_1
+    pin: D0
+  - platform: gpio
+    id: motor_2
+    pin: D1
+
+
+globals:
+   - id: dispensing
+     type: bool
+     initial_value: "false"
+   - id: dispense_pill_with_food
+     type: bool
+     initial_value: "false"
+   - id: reversing
+     type: bool
+     initial_value: "false"
+   - id: pill_number
+     type: int
+     initial_value: "0"
+
+
+binary_sensor:
+  - platform: gpio
+    id: can_detector
+    name: Can Detector
+    filters:
+      - delayed_on_off: 100ms
+    pin:
+      number: D2
+      inverted: true
+      mode:
+        input: true
+    on_press:
+      # - delay: 10s #after seeing the can, keep moving a few seconds to kick the previous can down the chute
+      - lambda: !lambda |-
+          ESP_LOGD("main", "Can detected");
+          if(id(dispensing) && !id(dispense_pill_with_food)) {
+            id(delayed_stop).execute();
+          }
+
+    on_release:
+      - lambda: !lambda |-
+          ESP_LOGD("main", "Can disappeared");
+          if(id(dispensing) && id(dispense_pill_with_food)) {
+            ESP_LOGD("main", "Pausing can dispense, and dispensing pill");
+            id(dispense_can_stop).execute();
+            id(dispense_pill).execute();
+          }
+      - delay: 2.5s
+      - lambda: !lambda |-
+          if(id(dispensing) && id(dispense_pill_with_food)) {
+            ESP_LOGD("main", "Resuming can dispense");
+            id(dispense_can_start).execute();
+          }
+      - delay: .5s
+      - lambda: !lambda |-
+          if(id(dispensing) && id(dispense_pill_with_food)) {
+            id(dispense_pill_with_food) = false;
+          }
+
+
+
+
+
+
+
+button:
+  - platform: template
+    name: "Can - Dispense No Pill"
+    on_press:
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Dispensing can");
+            id(dispense_can_start).execute();
+        - delay: 2s
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Setting variable that dispensing is happening");
+            id(dispense_pill_with_food) = false;
+            id(dispensing) = true;
+        - delay: 80s
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Dispensing timeout failsafe");
+            if(id(dispensing))
+              id(dispense_can_stop).execute();
+
+
+  - platform: template
+    name: "Can - Dispense With Pill"
+    on_press:
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Dispensing can with food");
+            id(dispense_pill_with_food) = true;
+            id(dispense_can_start).execute();
+        - delay: 2s
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Setting variable that dispensing is happening");
+            id(dispensing) = true;
+        - delay: 50s
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Dispensing timeout failsafe");
+            if(id(dispensing))
+              id(dispense_can_stop).execute();
+
+
+  - platform: template
+    name: "Can - Reverse"
+    on_press:
+      then:
+        - lambda: !lambda |-
+            if(!id(reversing)) {
+              ESP_LOGD("main", "Reversing");
+              id(dispense_can_reverse).execute();
+            } else {
+              ESP_LOGD("main", "Stopping Reverse");
+              id(dispense_can_stop).execute();
+            }
+
+            id(reversing) = !id(reversing);
+
+
+  - platform: template
+    name: "Pill - Dispense"
+    on_press:
+      then:
+        - lambda: !lambda |-
+            id(dispense_pill).execute();
+
+  - platform: template
+    name: "Pill - Step"
+    on_press:
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Pill step");
+            id(pill_number) = 0;
+            id(cat_stepper).report_position(0);
+            id(cat_stepper).set_target(4);
+            ESP_LOGD("main", "Pill step complete");
+
+
+
+
+
+
+script:
+  - id: dispense_pill
+    then:
+      - lambda: !lambda |-
+          ESP_LOGD("main", "Pill dispense");
+          id(pill_number) += 1;
+          int roundedPillPosition = ((137 * id(pill_number)) / 4 ) * 4;
+          ESP_LOGD("main", "Pill number - %i, position %i", id(pill_number), roundedPillPosition);
+          id(cat_stepper).set_target(roundedPillPosition);
+          ESP_LOGD("main", "Pill dispense complete");
+  - id: dispense_can_start
+    then:
+      - lambda: !lambda |-
+          ESP_LOGD("main", "Can dispense");
+          id(my_servo).write(100);
+          id(motor_1).turn_on();
+          id(motor_2).turn_off();
+          ESP_LOGD("main", "Can dispense complete");
+  - id: dispense_can_stop
+    then:
+      - lambda: !lambda |-
+          ESP_LOGD("main", "Can dispense");
+          id(my_servo).detach();
+          id(motor_1).turn_off();
+          id(motor_2).turn_off();
+          ESP_LOGD("main", "Can dispense complete");
+  - id: dispense_can_reverse
+    then:
+      - lambda: !lambda |-
+          ESP_LOGD("main", "Can dispense");
+          id(my_servo).write(-100);
+          id(motor_1).turn_off();
+          id(motor_2).turn_on();
+          ESP_LOGD("main", "Can dispense complete");
+  - id: delayed_stop
+    then:
+      - lambda: !lambda |-
+          ESP_LOGD("main", "Delayed stop called");
+      - delay: 6s
+      - lambda: !lambda |-
+          ESP_LOGD("main", "Delayed stop executed");
+          id(dispense_can_stop).execute();
+          id(dispensing) = false;
+

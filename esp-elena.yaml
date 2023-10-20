@@ -1,0 +1,44 @@
+esphome:
+  name: esp-elena
+
+esp8266:
+  board: d1_mini
+
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: ""
+
+ota:
+  password: ""
+
+wifi:
+  # use_address: esphome-web-df0106.local
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "esp-train"
+    password: !secret wifi_password
+
+captive_portal:
+
+
+web_server:
+  port: 80
+
+
+
+
+
+# Example configuration entry
+switch:
+  - platform: gpio
+    pin: GPIO2
+    name: "LED"
+    inverted: true
+    
