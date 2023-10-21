@@ -1,8 +1,17 @@
 esphome:
   name: esp-griddle
+  on_boot:
+    priority: -5000
+    then:
+      - lambda: !lambda |-
+          id(pid_griddle).set_kp(id(pid_kp));
+          id(pid_griddle).set_ki(id(pid_ki));
+          id(pid_griddle).set_kd(id(pid_kd));
+
 
 esp8266:
-  board: nodemcuv2
+  board: d1_mini
+  restore_from_flash: true
 
 # Enable logging
 logger:
@@ -35,6 +44,7 @@ web_server:
 
 sensor:
   - platform: ntc
+    id: temp_sensor
     sensor: resistance_sensor
     name: NTC Temperature
     calibration:
@@ -44,7 +54,7 @@ sensor:
   - platform: resistance
     id: resistance_sensor
     sensor: source_sensor
-    configuration: DOWNSTREAM
+    configuration: UPSTREAM
     resistor: 6.76kOhm
     name: Resistance Sensor
     reference_voltage: 3.3
@@ -56,3 +66,108 @@ sensor:
       - multiply: 3.1
 
 
+
+
+binary_sensor:
+  - platform: template
+    name: "Griddle  Call"
+    id: griddle_call
+
+
+
+
+output:
+  - platform: sigma_delta_output
+    id: pwm_output
+    update_interval: 5s
+    # restart_cycle_on_state_change: false
+    turn_on_action:
+      - binary_sensor.template.publish:
+          id: griddle_call
+          state: ON
+    turn_off_action:
+      - binary_sensor.template.publish:
+          id: griddle_call
+          state: OFF
+
+
+
+
+
+climate:
+  - platform: pid
+    id: pid_griddle
+    name: "PID Griddle Controller"
+    sensor: temp_sensor
+    default_target_temperature: 150°C
+    heat_output: pwm_output
+    visual:
+      min_temperature: 15
+      max_temperature: 200
+      temperature_step: 5
+    control_parameters:
+      kp: 0.04483
+      ki: 0.00054
+      kd: 0.93015
+      # output_averaging_samples: 5      # smooth the output over 5 samples
+      # derivative_averaging_samples: 5  # smooth the derivative value over 10 samples
+
+
+
+
+
+button:
+  - platform: template
+    name: "PID Autotune"
+    on_press:
+      - climate.pid.set_control_parameters:
+            id: pid_griddle
+            kp: 0.0
+            ki: 0.0
+            kd: 0.0
+      - climate.pid.autotune: 
+          id: pid_griddle
+          noiseband: 0
+  - platform: template
+    name: "Save Autotune"
+    on_press:
+      then:
+        - lambda: |-
+            id(pid_kp) = id(pid_griddle).get_kp();
+            id(pid_ki) = id(pid_griddle).get_ki();
+            id(pid_kd) = id(pid_griddle).get_kd();
+  # - platform: template
+  #   name: "Log Autotune"
+  #   on_press:
+  #     then:
+  #       - lambda: |-
+  #           ESP_LOGD("main", "%f", id(pid_griddle).get_kp());
+  #           ESP_LOGD("main", "%f", id(pid_griddle).get_ki());
+  #           ESP_LOGD("main", "%f", id(pid_griddle).get_kd());
+  #           ESP_LOGD("main", "%f", id(pid_kp));
+  #           ESP_LOGD("main", "%f", id(pid_ki));
+  #           ESP_LOGD("main", "%f", id(pid_kd));
+
+
+
+
+
+
+
+
+
+
+
+globals:
+  - id: pid_kp
+    type: float
+    restore_value: yes
+    initial_value: "0.0"
+  - id: pid_ki
+    type: float
+    restore_value: yes
+    initial_value: "0.0"
+  - id: pid_kd
+    type: float
+    restore_value: yes
+    initial_value: "0.0"
