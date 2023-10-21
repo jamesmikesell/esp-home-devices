@@ -1,5 +1,5 @@
 esphome:
-  name: esp-temp
+  name: esp-basement-thermostat
 
 esp8266:
   board: d1_mini
@@ -15,13 +15,13 @@ ota:
   password: ""
 
 wifi:
-  # use_address: esphome-web-6bd955.local
+  # use_address: esp-temp.local
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: "ESP Temp and Humidity"
+    ssid: "ESP Basement Temp and Humidity"
     password: !secret wifi_password
 
 captive_portal:
@@ -29,10 +29,6 @@ captive_portal:
 web_server:
   port: 80
 
-# switch:
-#   - platform: gpio
-#     name: "Living Room Dehumidifier"
-#     pin: 2
 
 
 sensor:
@@ -40,23 +36,18 @@ sensor:
     pin: D0
     temperature:
       id: temp_sensor
-      name: "T"
+      name: "Temperature"
     humidity:
-      name: "H"
+      id: humidity_sensor
+      name: "Humidity"
     update_interval: 30s
 
 
 binary_sensor:
   - platform: template
-    name: "H"
-    id: heater_on
+    name: "Heater Call"
+    id: heater_call
 
-
-# switch:
-#   - platform: template
-#     id: heater_switch
-#     name: "Heater On"
-#     optimistic: true
 
 
 climate:
@@ -69,20 +60,20 @@ climate:
     heat_deadband: 0.14
     heat_overrun: 0.14
     visual:
-      min_temperature: 16.5
-      max_temperature: 24
-      temperature_step: 0.5
+      min_temperature: 55°F
+      max_temperature: 85°F
+      temperature_step: 1°F
     heat_action:
-      # - switch.turn_on: heater_switch
       - binary_sensor.template.publish:
-          id: heater_on
+          id: heater_call
           state: ON
     idle_action:
-      # - switch.turn_off: heater_switch
       - binary_sensor.template.publish:
-          id: heater_on
+          id: heater_call
           state: OFF
-    default_preset: Home
-    preset:
-      - name: Home
-        default_target_temperature_low: 70 °F
+    # default_preset: Home
+    # preset:
+    #   - name: Home
+    #     default_target_temperature_low: 70 °F
+
+
