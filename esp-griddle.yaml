@@ -7,6 +7,9 @@ esphome:
           id(pid_griddle).set_kp(id(pid_kp));
           id(pid_griddle).set_ki(id(pid_ki));
           id(pid_griddle).set_kd(id(pid_kd));
+          id(ui_kp).state = id(pid_kp);
+          id(ui_ki).state = id(pid_ki);
+          id(ui_kd).state = id(pid_kd);
 
 
 esp8266:
@@ -136,22 +139,58 @@ button:
             id(pid_kp) = id(pid_griddle).get_kp();
             id(pid_ki) = id(pid_griddle).get_ki();
             id(pid_kd) = id(pid_griddle).get_kd();
-  # - platform: template
-  #   name: "Log Autotune"
-  #   on_press:
-  #     then:
-  #       - lambda: |-
-  #           ESP_LOGD("main", "%f", id(pid_griddle).get_kp());
-  #           ESP_LOGD("main", "%f", id(pid_griddle).get_ki());
-  #           ESP_LOGD("main", "%f", id(pid_griddle).get_kd());
-  #           ESP_LOGD("main", "%f", id(pid_kp));
-  #           ESP_LOGD("main", "%f", id(pid_ki));
-  #           ESP_LOGD("main", "%f", id(pid_kd));
+  - platform: template
+    name: "Log Autotune"
+    on_press:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "%f", id(pid_griddle).get_kp());
+            ESP_LOGD("main", "%f", id(pid_griddle).get_ki());
+            ESP_LOGD("main", "%f", id(pid_griddle).get_kd());
+            ESP_LOGD("main", "%f", id(pid_kp));
+            ESP_LOGD("main", "%f", id(pid_ki));
+            ESP_LOGD("main", "%f", id(pid_kd));
 
 
 
 
-
+number:
+  - platform: template
+    name: kp
+    id: ui_kp
+    min_value: -1000
+    max_value: 1000
+    step: .00001
+    mode: box
+    set_action:
+      then:
+        - lambda: !lambda |-
+            id(pid_kp) = x;
+            id(pid_griddle).set_kp(id(pid_kp));
+  - platform: template
+    name: ki
+    id: ui_ki
+    min_value: -1000
+    max_value: 1000
+    step: .00001
+    mode: box
+    set_action:
+      then:
+        - lambda: !lambda |-
+            id(pid_ki) = x;
+            id(pid_griddle).set_ki(id(pid_ki));
+  - platform: template
+    name: kd
+    id: ui_kd
+    min_value: -1000
+    max_value: 1000
+    step: .00001
+    mode: box
+    set_action:
+      then:
+        - lambda: !lambda |-
+            id(pid_kd) = x;
+            id(pid_griddle).set_kd(id(pid_kd));
 
 
 
