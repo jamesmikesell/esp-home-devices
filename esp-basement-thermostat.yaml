@@ -1,5 +1,16 @@
 esphome:
   name: esp-basement-thermostat
+  on_boot:
+    priority: -5000
+    then:
+      - lambda: !lambda |-
+          id(pid_thermostat).set_kp(id(pid_kp));
+          id(pid_thermostat).set_ki(id(pid_ki));
+          id(pid_thermostat).set_kd(id(pid_kd));
+          id(ui_kp).state = id(pid_kp);
+          id(ui_ki).state = id(pid_ki);
+          id(ui_kd).state = id(pid_kd);
+
 
 esp8266:
   board: d1_mini
@@ -37,10 +48,25 @@ sensor:
     temperature:
       id: temp_sensor
       name: "Temperature"
+      filters:
+        - sliding_window_moving_average:
+            window_size: 20
+            send_every: 5
     humidity:
       id: humidity_sensor
       name: "Humidity"
-    update_interval: 30s
+      filters:
+        - sliding_window_moving_average:
+            window_size: 20
+            send_every: 5
+    update_interval: 3s
+  - platform: template
+    id: ui_float_output
+    name: "Heat Output"
+    unit_of_measurement: "%"
+    update_interval: 10s
+
+
 
 
 binary_sensor:
@@ -50,30 +76,145 @@ binary_sensor:
 
 
 
+
+output:
+  - platform: sigma_delta_output
+    id: pwm_output
+    update_interval: 120s
+    turn_on_action:
+      - binary_sensor.template.publish:
+          id: heater_call
+          state: ON
+    turn_off_action:
+      - binary_sensor.template.publish:
+          id: heater_call
+          state: OFF
+  - platform: template
+    id: float_output
+    type: float
+    write_action:
+      - output.set_level:
+          id: pwm_output
+          level: !lambda return state;
+      - sensor.template.publish:
+          id: ui_float_output
+          state: !lambda return state * 100.0;
+
+
+
 climate:
-  - platform: thermostat
-    name: "Temp"
+  - platform: pid
+    id: pid_thermostat
+    name: "Basement Thermostat"
     sensor: temp_sensor
-    min_heating_off_time: 30s
-    min_heating_run_time: 30s
-    min_idle_time: 30s
-    heat_deadband: 0.14
-    heat_overrun: 0.14
+    default_target_temperature: 70°F
+    heat_output: float_output
     visual:
       min_temperature: 55°F
       max_temperature: 85°F
       temperature_step: 1°F
-    heat_action:
-      - binary_sensor.template.publish:
-          id: heater_call
-          state: ON
-    idle_action:
-      - binary_sensor.template.publish:
-          id: heater_call
-          state: OFF
-    # default_preset: Home
-    # preset:
-    #   - name: Home
-    #     default_target_temperature_low: 70 °F
+    control_parameters:
+      kp: 0.0 # this will get overwritten by the persisted globals
+      ki: 0.0 # this will get overwritten by the persisted globals
+      kd: 0.0 # this will get overwritten by the persisted globals
+      derivative_averaging_samples: 8
 
 
+
+button:
+  - platform: template
+    name: "PID Autotune"
+    on_press:
+      - climate.pid.set_control_parameters:
+            id: pid_thermostat
+            kp: 0.0
+            ki: 0.0
+            kd: 0.0
+      - climate.pid.autotune: 
+          id: pid_thermostat
+          noiseband: 0.3
+  - platform: template
+    name: "Save Autotune"
+    on_press:
+      then:
+        - lambda: |-
+            id(pid_kp) = id(pid_thermostat).get_kp();
+            id(pid_ki) = id(pid_thermostat).get_ki();
+            id(pid_kd) = id(pid_thermostat).get_kd();
+  - platform: template
+    name: "Log Autotune"
+    on_press:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Current Controller kp - %f", id(pid_thermostat).get_kp());
+            ESP_LOGD("main", "Current Controller ki - %f", id(pid_thermostat).get_ki());
+            ESP_LOGD("main", "Current Controller kd - %f", id(pid_thermostat).get_kd());
+            ESP_LOGD("main", "Saved kp - %f", id(pid_kp));
+            ESP_LOGD("main", "Saved ki - %f", id(pid_ki));
+            ESP_LOGD("main", "Saved kd - %f", id(pid_kd));
+
+
+
+
+
+
+
+
+number:
+  - platform: template
+    name: kp
+    id: ui_kp
+    min_value: -1000
+    max_value: 1000
+    step: .00001
+    mode: box
+    set_action:
+      then:
+        - lambda: !lambda |-
+            id(pid_kp) = x;
+            id(pid_thermostat).set_kp(id(pid_kp));
+  - platform: template
+    name: ki
+    id: ui_ki
+    min_value: -1000
+    max_value: 1000
+    step: .00001
+    mode: box
+    set_action:
+      then:
+        - lambda: !lambda |-
+            id(pid_ki) = x;
+            id(pid_thermostat).set_ki(id(pid_ki));
+  - platform: template
+    name: kd
+    id: ui_kd
+    min_value: -1000
+    max_value: 1000
+    step: .00001
+    mode: box
+    set_action:
+      then:
+        - lambda: !lambda |-
+            id(pid_kd) = x;
+            id(pid_thermostat).set_kd(id(pid_kd));
+
+
+
+
+
+
+
+
+globals:
+  - id: pid_kp
+    type: float
+    restore_value: yes
+    initial_value: "0.6548089"
+  - id: pid_ki
+    type: float
+    restore_value: yes
+    initial_value: "0.0002835"
+  - id: pid_kd
+    type: float
+    restore_value: yes
+    initial_value: "378.1521448"
