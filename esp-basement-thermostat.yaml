@@ -1,19 +1,17 @@
 esphome:
   name: esp-basement-thermostat
   on_boot:
-    priority: -5000
-    then:
-      - lambda: !lambda |-
-          id(pid_thermostat).set_kp(id(pid_kp));
-          id(pid_thermostat).set_ki(id(pid_ki));
-          id(pid_thermostat).set_kd(id(pid_kd));
-          id(ui_kp).state = id(pid_kp);
-          id(ui_ki).state = id(pid_ki);
-          id(ui_kd).state = id(pid_kd);
+    - priority: -5000
+      then:
+        - lambda: !lambda |-
+            id(pid_thermostat).set_kp(id(ui_kp).state);
+            id(pid_thermostat).set_ki(id(ui_ki).state);
+            id(pid_thermostat).set_kd(id(ui_kd).state);
 
 
 esp8266:
   board: d1_mini
+  restore_from_flash: true
 
 # Enable logging
 logger:
@@ -42,24 +40,29 @@ web_server:
 
 
 
+i2c:
+  scl: D1
+  sda: D2
+  scan: true
+
+
 sensor:
-  - platform: dht
-    pin: D0
+  - platform: aht10
     temperature:
       id: temp_sensor
       name: "Temperature"
       filters:
         - sliding_window_moving_average:
-            window_size: 20
-            send_every: 5
+            window_size: 15
+            send_every: 15
     humidity:
       id: humidity_sensor
       name: "Humidity"
       filters:
         - sliding_window_moving_average:
-            window_size: 20
-            send_every: 5
-    update_interval: 3s
+            window_size: 15
+            send_every: 15
+    update_interval: 2s
   - platform: template
     id: ui_float_output
     name: "Heat Output"
@@ -117,7 +120,7 @@ climate:
       kp: 0.0 # this will get overwritten by the persisted globals
       ki: 0.0 # this will get overwritten by the persisted globals
       kd: 0.0 # this will get overwritten by the persisted globals
-      derivative_averaging_samples: 8
+      derivative_averaging_samples: 4
 
 
 
@@ -138,9 +141,9 @@ button:
     on_press:
       then:
         - lambda: |-
-            id(pid_kp) = id(pid_thermostat).get_kp();
-            id(pid_ki) = id(pid_thermostat).get_ki();
-            id(pid_kd) = id(pid_thermostat).get_kd();
+            id(ui_kp).state = id(pid_thermostat).get_kp();
+            id(ui_ki).state = id(pid_thermostat).get_ki();
+            id(ui_kd).state = id(pid_thermostat).get_kd();
   - platform: template
     name: "Log Autotune"
     on_press:
@@ -149,9 +152,6 @@ button:
             ESP_LOGD("main", "Current Controller kp - %f", id(pid_thermostat).get_kp());
             ESP_LOGD("main", "Current Controller ki - %f", id(pid_thermostat).get_ki());
             ESP_LOGD("main", "Current Controller kd - %f", id(pid_thermostat).get_kd());
-            ESP_LOGD("main", "Saved kp - %f", id(pid_kp));
-            ESP_LOGD("main", "Saved ki - %f", id(pid_ki));
-            ESP_LOGD("main", "Saved kd - %f", id(pid_kd));
 
 
 
@@ -162,59 +162,47 @@ button:
 
 number:
   - platform: template
-    name: kp
+    name: 1 kp
     id: ui_kp
     min_value: -1000
     max_value: 1000
     step: .00001
     mode: box
+    restore_value: true
+    initial_value: 0.6548089
     set_action:
       then:
         - lambda: !lambda |-
-            id(pid_kp) = x;
-            id(pid_thermostat).set_kp(id(pid_kp));
+            id(pid_thermostat).set_kp(x);
   - platform: template
-    name: ki
+    name: 2 ki
     id: ui_ki
     min_value: -1000
     max_value: 1000
     step: .00001
     mode: box
+    restore_value: true
+    initial_value: 0.0002835
     set_action:
       then:
         - lambda: !lambda |-
-            id(pid_ki) = x;
-            id(pid_thermostat).set_ki(id(pid_ki));
+            id(pid_thermostat).set_ki(x);
   - platform: template
-    name: kd
+    name: 3 kd
     id: ui_kd
     min_value: -1000
     max_value: 1000
     step: .00001
     mode: box
+    restore_value: true
+    initial_value: 378.1521448
     set_action:
       then:
         - lambda: !lambda |-
-            id(pid_kd) = x;
-            id(pid_thermostat).set_kd(id(pid_kd));
+            id(pid_thermostat).set_kd(x);
 
 
 
 
 
 
-
-
-globals:
-  - id: pid_kp
-    type: float
-    restore_value: yes
-    initial_value: "0.6548089"
-  - id: pid_ki
-    type: float
-    restore_value: yes
-    initial_value: "0.0002835"
-  - id: pid_kd
-    type: float
-    restore_value: yes
-    initial_value: "378.1521448"
