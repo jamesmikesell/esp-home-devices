@@ -122,7 +122,7 @@ climate:
       ki: 0.00054
       kd: 0.93015
       output_averaging_samples: 5
-      # derivative_averaging_samples: 5
+      derivative_averaging_samples: 5
 
 
 
