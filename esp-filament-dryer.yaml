@@ -1,0 +1,193 @@
+esphome:
+  name: "esp-filament-dryer"
+  on_boot:
+    - priority: -5000
+      then:
+        - lambda: !lambda |-
+            id(pid_thermostat).set_kp(id(ui_kp).state);
+            id(pid_thermostat).set_ki(id(ui_ki).state);
+            id(pid_thermostat).set_kd(id(ui_kd).state);
+
+
+esp8266:
+  board: d1_mini
+  restore_from_flash: true
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: ""
+
+ota:
+  - platform: esphome
+    password: ""
+
+wifi:
+  # use_address: esp-temp.local
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "ESP Filament Dryer"
+    password: !secret wifi_password
+
+captive_portal:
+
+web_server:
+  port: 80
+
+
+
+i2c:
+  scl: D1
+  sda: D2
+  scan: true
+
+
+sensor:
+  - platform: aht10
+    temperature:
+      id: temp_sensor
+      name: "Temperature"
+    humidity:
+      id: humidity_sensor
+      name: "Humidity"
+    update_interval: 1s
+  - platform: template
+    id: ui_float_output
+    name: "Heat Output"
+    unit_of_measurement: "%"
+    update_interval: 11s
+
+
+
+
+
+output:
+  - platform: template
+    id: float_output
+    type: float
+    write_action:
+      - output.set_level:
+          id: pwm_output
+          level: !lambda return state;
+      - sensor.template.publish:
+          id: ui_float_output
+          state: !lambda return state * 100.0;
+  - platform: esp8266_pwm
+    pin: D0
+    frequency: 61
+    id: pwm_output
+
+
+
+climate:
+  - platform: pid
+    id: pid_thermostat
+    name: "Filament Dryer"
+    sensor: temp_sensor
+    default_target_temperature: 70°F
+    heat_output: float_output
+    visual:
+      min_temperature: 0°F
+      max_temperature: 200°F
+      temperature_step: 1°F
+    control_parameters:
+      kp: 0.0 # this will get overwritten by the persisted globals
+      ki: 0.0 # this will get overwritten by the persisted globals
+      kd: 0.0 # this will get overwritten by the persisted globals
+      derivative_averaging_samples: 4
+      output_averaging_samples: 4
+
+
+
+
+button:
+  - platform: template
+    name: "PID Autotune"
+    on_press:
+      - climate.pid.set_control_parameters:
+            id: pid_thermostat
+            kp: 0.0
+            ki: 0.0
+            kd: 0.0
+      - climate.pid.autotune: 
+          id: pid_thermostat
+          noiseband: 0.0
+          positive_output: 15%
+  - platform: template
+    name: "Save Autotune"
+    on_press:
+      then:
+        - lambda: |-
+            id(ui_kp).state = id(pid_thermostat).get_kp();
+            id(ui_ki).state = id(pid_thermostat).get_ki();
+            id(ui_kd).state = id(pid_thermostat).get_kd();
+  - platform: template
+    name: "Log Autotune"
+    on_press:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Current Controller kp - %f", id(pid_thermostat).get_kp());
+            ESP_LOGD("main", "Current Controller ki - %f", id(pid_thermostat).get_ki());
+            ESP_LOGD("main", "Current Controller kd - %f", id(pid_thermostat).get_kd());
+
+
+
+
+
+
+
+
+number:
+  - platform: template
+    name: 1 kp
+    id: ui_kp
+    min_value: -1000
+    max_value: 1000
+    step: .00000001
+    mode: box
+    restore_value: true
+    initial_value: 0.6548089
+    optimistic: true
+    set_action:
+      then:
+        - lambda: !lambda |-
+            id(pid_thermostat).set_kp(x);
+  - platform: template
+    name: 2 ki
+    id: ui_ki
+    min_value: -1000
+    max_value: 1000
+    step: .00000001
+    mode: box
+    restore_value: true
+    initial_value: 0.0002835
+    optimistic: true
+    set_action:
+      then:
+        - lambda: !lambda |-
+            id(pid_thermostat).set_ki(x);
+  - platform: template
+    name: 3 kd
+    id: ui_kd
+    min_value: -1000
+    max_value: 1000
+    step: .00000001
+    mode: box
+    restore_value: true
+    initial_value: 378.1521448
+    optimistic: true
+    set_action:
+      then:
+        - lambda: !lambda |-
+            id(pid_thermostat).set_kd(x);
+            id(pid_thermostat).set_kd(x);
+
+
+
+
+
