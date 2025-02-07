@@ -71,12 +71,15 @@ output:
     id: float_output
     type: float
     write_action:
-      - output.set_level:
-          id: pwm_output
-          level: !lambda return state;
-      - sensor.template.publish:
-          id: ui_float_output
-          state: !lambda return state * 100.0;
+      - lambda: |-
+          float output_value;
+          if (id(pid_thermostat).mode == CLIMATE_MODE_OFF) {
+            output_value = id(manual_pwm).state / 100.0;
+          } else {
+            output_value = state;
+          }
+          id(pwm_output).set_level(output_value);
+          id(ui_float_output).publish_state(output_value * 100.0);
   - platform: esp8266_pwm
     pin: D0
     frequency: 61
@@ -186,6 +189,20 @@ number:
         - lambda: !lambda |-
             id(pid_thermostat).set_kd(x);
             id(pid_thermostat).set_kd(x);
+  - platform: template
+    name: "Manual PWM Control"
+    id: manual_pwm
+    min_value: 0
+    max_value: 100
+    step: 1
+    unit_of_measurement: "%"
+    mode: slider
+    optimistic: true
+    set_action:
+      then:
+        - output.set_level:
+            id: float_output
+            level: !lambda return x / 100.0;
 
 
 
