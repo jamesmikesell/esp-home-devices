@@ -18,12 +18,23 @@ float PIDController::update(float setpoint, float process_value) {
   calculate_integral_term_();
   calculate_derivative_term_(setpoint);
 
-  // u(t) := p(t) + i(t) + d(t)
-  float output = proportional_term_ + integral_term_ + derivative_term_;
+  // Calculate unclamped output: u(t) := p(t) + i(t) + d(t)
+  float unclamped_output = proportional_term_ + integral_term_ + derivative_term_;
+  
+  // Clamp output between min and max
+  float clamped_output = std::max(std::min(unclamped_output, 1.0f), 0.0f);
+
+  // Apply anti-windup adjustment if Kaw is set and output is clamped
+  if (kb_ != 0 && unclamped_output != clamped_output) {
+    float windup = unclamped_output - clamped_output;
+    accumulated_integral_ -= kb_ * windup * dt_;
+    accumulated_integral_ = std::max(std::min(accumulated_integral_, 1.0f), 0.0f);
+    integral_term_ = accumulated_integral_;
+  }
 
   // smooth/sample the output
   int samples = in_deadband() ? deadband_output_samples_ : output_samples_;
-  return weighted_average_(output_list_, output, samples);
+  return weighted_average_(output_list_, clamped_output, samples);
 }
 
 bool PIDController::in_deadband() {
@@ -60,11 +71,13 @@ void PIDController::calculate_integral_term_() {
     accumulated_integral_ += new_integral;
   }
 
-  // constrain accumulated integral value
-  if (!std::isnan(min_integral_) && accumulated_integral_ < min_integral_)
-    accumulated_integral_ = min_integral_;
-  if (!std::isnan(max_integral_) && accumulated_integral_ > max_integral_)
-    accumulated_integral_ = max_integral_;
+  // Only apply min/max constraints if kb_ is 0 (no back-calculation)
+  if (kb_ == 0) {
+    if (!std::isnan(min_integral_) && accumulated_integral_ < min_integral_)
+      accumulated_integral_ = min_integral_;
+    if (!std::isnan(max_integral_) && accumulated_integral_ > max_integral_)
+      accumulated_integral_ = max_integral_;
+  }
 
   integral_term_ = accumulated_integral_;
 }

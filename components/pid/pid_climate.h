@@ -25,6 +25,7 @@ class PIDClimate : public climate::Climate, public Component {
   void set_kp(float kp) { controller_.kp_ = kp; }
   void set_ki(float ki) { controller_.ki_ = ki; }
   void set_kd(float kd) { controller_.kd_ = kd; }
+  void set_kb(float kb) { controller_.kb_ = kb; }
   void set_min_integral(float min_integral) { controller_.min_integral_ = min_integral; }
   void set_max_integral(float max_integral) { controller_.max_integral_ = max_integral; }
   void set_output_samples(int in) { controller_.output_samples_ = in; }
@@ -44,6 +45,7 @@ class PIDClimate : public climate::Climate, public Component {
   float get_kp() { return controller_.kp_; }
   float get_ki() { return controller_.ki_; }
   float get_kd() { return controller_.kd_; }
+  float get_kb() { return controller_.kb_; }
   float get_min_integral() { return controller_.min_integral_; }
   float get_max_integral() { return controller_.max_integral_; }
   float get_proportional_term() const { return controller_.proportional_term_; }
@@ -142,16 +144,19 @@ template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts.
     auto kp = this->kp_.value(x...);
     auto ki = this->ki_.value(x...);
     auto kd = this->kd_.value(x...);
+    auto kb = this->kb_.value(x...);
 
     this->parent_->set_kp(kp);
     this->parent_->set_ki(ki);
     this->parent_->set_kd(kd);
+    this->parent_->set_kb(kb);
   }
 
  protected:
   TEMPLATABLE_VALUE(float, kp)
   TEMPLATABLE_VALUE(float, ki)
   TEMPLATABLE_VALUE(float, kd)
+  TEMPLATABLE_VALUE(float, kb)
 
   PIDClimate *parent_;
 };

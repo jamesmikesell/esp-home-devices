@@ -23,6 +23,8 @@ struct PIDController {
   float ki_ = 0;
   /// Differential gain K_d.
   float kd_ = 0;
+  /// Anti-windup gain K_b.
+  float kb_ = 0;
 
   // smooth the derivative value using a weighted average over X samples
   int derivative_samples_ = 8;

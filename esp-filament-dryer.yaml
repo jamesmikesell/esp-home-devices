@@ -7,7 +7,7 @@ esphome:
             id(pid_thermostat).set_kp(id(ui_kp).state);
             id(pid_thermostat).set_ki(id(ui_ki).state);
             id(pid_thermostat).set_kd(id(ui_kd).state);
-
+            id(pid_thermostat).set_kb(id(ui_kb).state);
 
 esp8266:
   board: d1_mini
@@ -107,6 +107,7 @@ climate:
       kp: 0.0 # this will get overwritten by the persisted globals
       ki: 0.0 # this will get overwritten by the persisted globals
       kd: 0.0 # this will get overwritten by the persisted globals
+      kb: 0.0 # this will get overwritten by the persisted globals
       derivative_averaging_samples: 4
       output_averaging_samples: 4
 
@@ -122,6 +123,7 @@ button:
             kp: 0.0
             ki: 0.0
             kd: 0.0
+            kb: 0.0
       - climate.pid.autotune: 
           id: pid_thermostat
           noiseband: 0.0
@@ -134,6 +136,7 @@ button:
             id(ui_kp).state = id(pid_thermostat).get_kp();
             id(ui_ki).state = id(pid_thermostat).get_ki();
             id(ui_kd).state = id(pid_thermostat).get_kd();
+            id(ui_kb).state = id(pid_thermostat).get_kb();
   - platform: template
     name: "Log Autotune"
     on_press:
@@ -142,6 +145,7 @@ button:
             ESP_LOGD("main", "Current Controller kp - %f", id(pid_thermostat).get_kp());
             ESP_LOGD("main", "Current Controller ki - %f", id(pid_thermostat).get_ki());
             ESP_LOGD("main", "Current Controller kd - %f", id(pid_thermostat).get_kd());
+            ESP_LOGD("main", "Current Controller kb - %f", id(pid_thermostat).get_kb());
 
 
 
@@ -156,7 +160,7 @@ number:
     id: ui_kp
     min_value: -1000
     max_value: 1000
-    step: .00000001
+    step: 0.00000001
     mode: box
     restore_value: true
     initial_value: 0.6548089
@@ -170,7 +174,7 @@ number:
     id: ui_ki
     min_value: -1000
     max_value: 1000
-    step: .00000001
+    step: 0.00000001
     mode: box
     restore_value: true
     initial_value: 0.0002835
@@ -184,7 +188,7 @@ number:
     id: ui_kd
     min_value: -1000
     max_value: 1000
-    step: .00000001
+    step: 0.00000001
     mode: box
     restore_value: true
     initial_value: 378.1521448
@@ -193,7 +197,20 @@ number:
       then:
         - lambda: !lambda |-
             id(pid_thermostat).set_kd(x);
-            id(pid_thermostat).set_kd(x);
+  - platform: template
+    name: 4 kb
+    id: ui_kb
+    min_value: -1000
+    max_value: 1000
+    step: 0.00000001
+    mode: box
+    restore_value: true
+    initial_value: 0.0
+    optimistic: true
+    set_action:
+      then:
+        - lambda: !lambda |-
+            id(pid_thermostat).set_kb(x);
   - platform: template
     name: "Manual PWM Control"
     id: manual_pwm

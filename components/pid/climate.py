@@ -18,6 +18,7 @@ CONF_DEFAULT_TARGET_TEMPERATURE = "default_target_temperature"
 
 CONF_KP = "kp"
 CONF_KI = "ki"
+CONF_KB = "kb"
 CONF_STARTING_INTEGRAL_TERM = "starting_integral_term"
 CONF_KD = "kd"
 CONF_CONTROL_PARAMETERS = "control_parameters"
@@ -65,6 +66,7 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Required(CONF_KP): cv.float_,
                     cv.Optional(CONF_KI, default=0.0): cv.float_,
+                    cv.Optional(CONF_KB, default=0.0): cv.float_,
                     cv.Optional(CONF_KD, default=0.0): cv.float_,
                     cv.Optional(CONF_STARTING_INTEGRAL_TERM, default=0.0): cv.float_,
                     cv.Optional(CONF_MIN_INTEGRAL, default=-1): cv.float_,
@@ -100,6 +102,7 @@ async def to_code(config):
     params = config[CONF_CONTROL_PARAMETERS]
     cg.add(var.set_kp(params[CONF_KP]))
     cg.add(var.set_ki(params[CONF_KI]))
+    cg.add(var.set_kb(params[CONF_KB]))
     cg.add(var.set_kd(params[CONF_KD]))
     cg.add(var.set_starting_integral_term(params[CONF_STARTING_INTEGRAL_TERM]))
     cg.add(var.set_derivative_samples(params[CONF_DERIVATIVE_AVERAGING_SAMPLES]))
@@ -174,6 +177,7 @@ async def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_ID): cv.use_id(PIDClimate),
             cv.Required(CONF_KP): cv.templatable(cv.float_),
             cv.Optional(CONF_KI, default=0.0): cv.templatable(cv.float_),
+            cv.Optional(CONF_KB, default=0.0): cv.templatable(cv.float_),
             cv.Optional(CONF_KD, default=0.0): cv.templatable(cv.float_),
         }
     ),
@@ -187,6 +191,9 @@ async def set_control_parameters(config, action_id, template_arg, args):
 
     ki_template_ = await cg.templatable(config[CONF_KI], args, float)
     cg.add(var.set_ki(ki_template_))
+
+    kb_template_ = await cg.templatable(config[CONF_KB], args, float)
+    cg.add(var.set_kb(kb_template_))
 
     kd_template_ = await cg.templatable(config[CONF_KD], args, float)
     cg.add(var.set_kd(kd_template_))
