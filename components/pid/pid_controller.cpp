@@ -21,6 +21,9 @@ float PIDController::update(float setpoint, float process_value) {
   // Calculate unclamped output: u(t) := p(t) + i(t) + d(t)
   float unclamped_output = proportional_term_ + integral_term_ + derivative_term_;
   
+  // Check and store saturation state
+  previous_output_saturated_ = (unclamped_output > 1.0f || unclamped_output < 0.0f);
+  
   // Clamp output between min and max
   float clamped_output = std::max(std::min(unclamped_output, 1.0f), 0.0f);
 
@@ -64,11 +67,14 @@ void PIDController::calculate_integral_term_() {
   // i(t) := K_i * \int_{0}^{t} e(t) dt
   float new_integral = error_ * dt_ * ki_;
 
-  if (in_deadband()) {
-    // shallow the integral when in the deadband
-    accumulated_integral_ += new_integral * ki_multiplier_;
-  } else {
-    accumulated_integral_ += new_integral;
+  // Only accumulate integral if output wasn't saturated in previous iteration
+  if (!previous_output_saturated_ || kb_ != 0) {
+    if (in_deadband()) {
+      // shallow the integral when in the deadband
+      accumulated_integral_ += new_integral * ki_multiplier_;
+    } else {
+      accumulated_integral_ += new_integral;
+    }
   }
 
   // Only apply min/max constraints if kb_ is 0 (no back-calculation)

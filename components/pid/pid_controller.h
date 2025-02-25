@@ -68,6 +68,8 @@ struct PIDController {
   // this is a list of output values for smoothing.
   std::deque<float> output_list_;
 
+  bool previous_output_saturated_ = false;
+
 };  // Struct PID Controller
 }  // namespace pid
 }  // namespace esphome
